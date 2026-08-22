@@ -70,6 +70,14 @@ class AttackerProfile(BaseModel):
     distinct_honeypots_hit: int
     top_credentials_tried: list[CredentialAttempt]
     attack_categories: list[str]
+    # Flattened out of the gold table's richer `geo` struct (see
+    # threatlake.transform.gold.attacker_profiles) - country/city/ASN
+    # aren't surfaced here because nothing in this API currently uses
+    # them; lat/lon are, for the dashboard's Map tab. Both null when the
+    # IP didn't resolve (private/reserved range, or a MaxMind free-tier
+    # coverage gap - both normal, not errors - see ARCHITECTURE.md).
+    latitude: float | None
+    longitude: float | None
 
 
 class AttackerProfilesResponse(BaseModel):

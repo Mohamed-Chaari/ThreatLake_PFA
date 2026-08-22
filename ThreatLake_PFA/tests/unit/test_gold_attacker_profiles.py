@@ -18,11 +18,15 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
+import pytest
+
 from threatlake.common.paths import gold_path
+from threatlake.enrichment.geo import GeoEnricher
 from threatlake.transform.gold.attacker_profiles import (
     build_attacker_profiles,
     write_attacker_profiles,
 )
+from tests.conftest import GEOIP_ASN_TEST_DB, GEOIP_CITY_TEST_DB
 from tests.unit.silver_fixture_helpers import build_silver_df, silver_row, write_silver_fixture
 
 if TYPE_CHECKING:
@@ -61,7 +65,7 @@ def _fixture_rows() -> list[dict[str, object]]:
 
 def test_build_attacker_profiles_aggregation(spark: SparkSession) -> None:
     df = build_silver_df(spark, *_fixture_rows())
-    profiles = {r["src_ip"]: r for r in build_attacker_profiles(df).collect()}
+    profiles = {r["src_ip"]: r for r in build_attacker_profiles(df, spark).collect()}
 
     ip1 = profiles["1.1.1.1"]
     assert ip1["total_events"] == 4  # noqa: PLR2004
@@ -76,12 +80,40 @@ def test_build_attacker_profiles_aggregation(spark: SparkSession) -> None:
     ip2 = profiles["2.2.2.2"]
     assert ip2["top_credentials_tried"] == []
 
+    # No GeoEnricher supplied - geo must still be a PRESENT struct with
+    # null fields (never a null struct), so `geo.latitude` is always safe
+    # to select downstream regardless of whether enrichment ran.
+    assert ip1["geo"]["country"] is None
+    assert ip1["geo"]["latitude"] is None
+
 
 def test_build_attacker_profiles_drops_rows_with_no_src_ip(spark: SparkSession) -> None:
     df = build_silver_df(spark, silver_row(src_ip=None), silver_row(src_ip="3.3.3.3"))
-    profiles = build_attacker_profiles(df)
+    profiles = build_attacker_profiles(df, spark)
     assert profiles.count() == 1
     assert profiles.first()["src_ip"] == "3.3.3.3"
+
+
+def test_build_attacker_profiles_with_a_real_geo_enricher(spark: SparkSession) -> None:
+    """81.2.69.142 is a known-good MaxMind TEST-database entry (GB/London -
+    see tests/unit/test_enrichment_geo.py's own docstring for how that was
+    verified) - a real lookup, not a mock.
+    """
+    df = build_silver_df(
+        spark,
+        silver_row(event_id="1", src_ip="81.2.69.142", event_time=datetime(2026, 8, 2, 8, 0, tzinfo=UTC)),
+        silver_row(event_id="2", src_ip="203.0.113.99", event_time=datetime(2026, 8, 2, 8, 0, tzinfo=UTC)),
+    )
+    with GeoEnricher(GEOIP_CITY_TEST_DB, GEOIP_ASN_TEST_DB) as enricher:
+        profiles = {r["src_ip"]: r for r in build_attacker_profiles(df, spark, enricher).collect()}
+
+    resolved = profiles["81.2.69.142"]["geo"]
+    assert resolved["country"] == "GB"
+    assert resolved["latitude"] == pytest.approx(51.5142)
+
+    unresolved = profiles["203.0.113.99"]["geo"]
+    assert unresolved["country"] is None
+    assert unresolved["latitude"] is None
 
 
 def test_write_attacker_profiles_is_idempotent(spark: SparkSession, tmp_lakehouse: Settings) -> None:

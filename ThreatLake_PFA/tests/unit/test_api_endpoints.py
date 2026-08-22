@@ -13,8 +13,10 @@ from fastapi.testclient import TestClient
 
 from threatlake.api.app import create_app
 from threatlake.common.paths import gold_path
+from threatlake.enrichment.geo import GeoEnricher
 from threatlake.ml.score_events import SCORES_SCHEMA
 from threatlake.transform.gold.attacker_profiles import write_attacker_profiles
+from tests.conftest import GEOIP_ASN_TEST_DB, GEOIP_CITY_TEST_DB
 from tests.unit.silver_fixture_helpers import silver_row, write_silver_fixture
 
 if TYPE_CHECKING:
@@ -94,6 +96,35 @@ def test_attacker_profiles_list(seeded_app: TestClient) -> None:
     assert body["total"] == 2  # noqa: PLR2004
     ips = {item["src_ip"] for item in body["items"]}
     assert ips == {"9.9.9.9", "1.1.1.1"}
+    # seeded_app's write_attacker_profiles call passes no GeoEnricher - the
+    # lat/lon fields must still be PRESENT (null, not missing) so the
+    # dashboard's Map tab never has to special-case an absent key.
+    assert all(item["latitude"] is None for item in body["items"])
+
+
+def test_attacker_profiles_expose_real_lat_lon_from_geo_enrichment(
+    spark: SparkSession, tmp_lakehouse: Settings
+) -> None:
+    """81.2.69.142 is a known-good MaxMind TEST-database entry (GB/London -
+    see tests/unit/test_enrichment_geo.py) - proves lat/lon actually flows
+    from threatlake.enrichment.geo through the gold table to the API
+    response, not just that the field exists.
+    """
+    write_silver_fixture(
+        spark,
+        tmp_lakehouse,
+        silver_row(event_id="e1", src_ip="81.2.69.142", event_time=_EVENT_TIME),
+    )
+    with GeoEnricher(GEOIP_CITY_TEST_DB, GEOIP_ASN_TEST_DB) as enricher:
+        write_attacker_profiles(spark, tmp_lakehouse, geo_enricher=enricher)
+
+    app = create_app(settings=tmp_lakehouse)
+    with TestClient(app) as client:
+        response = client.get("/attacker_profiles/81.2.69.142")
+
+    profile = response.json()["profile"]
+    assert profile["latitude"] == pytest.approx(51.5142)
+    assert profile["longitude"] == pytest.approx(-0.0931)
 
 
 def test_attacker_profile_drilldown_includes_its_alerts(seeded_app: TestClient) -> None:

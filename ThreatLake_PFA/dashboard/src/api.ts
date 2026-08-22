@@ -32,6 +32,28 @@ export interface CopilotQueryResponse {
   row_count: number | null;
 }
 
+export interface AttackerProfile {
+  src_ip: string;
+  first_seen: string | null;
+  last_seen: string | null;
+  total_events: number;
+  distinct_ports_hit: number;
+  distinct_honeypots_hit: number;
+  attack_categories: string[];
+  // Null when this src_ip didn't resolve via MaxMind GeoLite2 (private/
+  // reserved range, or a free-tier coverage gap) - see
+  // threatlake.api.schemas.AttackerProfile.
+  latitude: number | null;
+  longitude: number | null;
+}
+
+export interface AttackerProfilesResponse {
+  total: number;
+  limit: number;
+  offset: number;
+  items: AttackerProfile[];
+}
+
 async function getJson<T>(url: string): Promise<T> {
   const response = await fetch(url);
   if (!response.ok) {
@@ -42,6 +64,10 @@ async function getJson<T>(url: string): Promise<T> {
 
 export function fetchAlerts(): Promise<AlertsResponse> {
   return getJson<AlertsResponse>("/alerts?limit=100");
+}
+
+export function fetchAttackerProfiles(): Promise<AttackerProfilesResponse> {
+  return getJson<AttackerProfilesResponse>("/attacker_profiles?limit=200");
 }
 
 export async function askCopilot(question: string): Promise<CopilotQueryResponse> {

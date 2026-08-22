@@ -24,7 +24,7 @@ from threatlake.api.schemas import (
 )
 
 if TYPE_CHECKING:
-    from pyspark.sql import Row, SparkSession
+    from pyspark.sql import DataFrame, Row, SparkSession
 
     from threatlake.common.config import Settings
 
@@ -47,6 +47,18 @@ _PROFILE_COLUMNS = (
 )
 
 
+def _select_profile_columns(df: DataFrame) -> DataFrame:
+    """_PROFILE_COLUMNS plus lat/lon, flattened out of the gold table's
+    `geo` struct - see threatlake.api.schemas.AttackerProfile for why only
+    those two geo fields are surfaced here.
+    """
+    return df.select(
+        *_PROFILE_COLUMNS,
+        F.col("geo.latitude").alias("latitude"),
+        F.col("geo.longitude").alias("longitude"),
+    )
+
+
 def _profile_from_row(row: Row) -> AttackerProfile:
     data: dict[str, Any] = row.asDict(recursive=True)
     return AttackerProfile(**data)
@@ -63,7 +75,7 @@ def list_attacker_profiles(
     if profiles is None:
         return AttackerProfilesResponse(total=0, limit=limit, offset=offset, items=[])
 
-    profiles = profiles.select(*_PROFILE_COLUMNS).orderBy(F.col("total_events").desc())
+    profiles = _select_profile_columns(profiles).orderBy(F.col("total_events").desc())
     total = profiles.count()
     page = profiles.offset(offset).limit(limit).collect()
     return AttackerProfilesResponse(
@@ -81,7 +93,7 @@ def get_attacker_profile(
     if profiles is None:
         raise HTTPException(status_code=404, detail=f"No attacker profile data for {ip!r} yet.")
 
-    match = profiles.select(*_PROFILE_COLUMNS).filter(F.col("src_ip") == ip).collect()
+    match = _select_profile_columns(profiles).filter(F.col("src_ip") == ip).collect()
     if not match:
         raise HTTPException(status_code=404, detail=f"No attacker profile for {ip!r}.")
     profile = _profile_from_row(match[0])

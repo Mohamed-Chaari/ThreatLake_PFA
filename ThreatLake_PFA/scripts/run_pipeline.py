@@ -33,12 +33,22 @@ from pyspark.sql import functions as F  # noqa: E402
 
 from threatlake.common.paths import bronze_path, gold_path, silver_path  # noqa: E402
 from threatlake.common.spark import get_spark, stop_spark  # noqa: E402
+from threatlake.enrichment.geo import GeoEnricher  # noqa: E402
 from threatlake.ingestion.bronze_writer import write_bronze  # noqa: E402
 from threatlake.ml.score_events import write_scored_events  # noqa: E402
 from threatlake.ml.train_anomaly import train_anomaly  # noqa: E402
 from threatlake.transform.gold.attack_timeline import write_attack_timeline  # noqa: E402
 from threatlake.transform.gold.attacker_profiles import write_attacker_profiles  # noqa: E402
 from threatlake.transform.silver.cowrie import map_cowrie  # noqa: E402
+
+# Real GeoLite2 production databases, manually downloaded from MaxMind
+# (free account + email verification required - see
+# https://www.maxmind.com/en/geolite2/signup - not something this script
+# or an agent can do on its own) and placed at data/geoip/. Not gitignored
+# by accident - see .gitignore's own data/ entry - these are re-downloaded
+# once per machine, not shipped with the repo.
+_GEOIP_CITY_DB = Path(__file__).resolve().parent.parent / "data" / "geoip" / "GeoLite2-City.mmdb"
+_GEOIP_ASN_DB = Path(__file__).resolve().parent.parent / "data" / "geoip" / "GeoLite2-ASN.mmdb"
 
 
 def _print_header(title: str) -> None:
@@ -79,10 +89,19 @@ def main() -> None:
 
     # --- Step 3: gold ---------------------------------------------------------
     _print_header("STEP 3 - GOLD (attacker_profiles, attack_timeline)")
-    profiles = write_attacker_profiles(spark)
-    print(f"attacker_profiles: {profiles.count()} rows (one per src_ip).")
+    with GeoEnricher(_GEOIP_CITY_DB, _GEOIP_ASN_DB) as geo_enricher:
+        profiles = write_attacker_profiles(spark, geo_enricher=geo_enricher)
+    total_profiles = profiles.count()
+    resolved = profiles.filter(F.col("geo.latitude").isNotNull()).count()
+    print(f"attacker_profiles: {total_profiles} rows (one per src_ip).")
+    print(
+        f"  geo: {resolved} of {total_profiles} src_ips resolved to a real lat/lon via "
+        "MaxMind GeoLite2 - the rest are private/reserved ranges or outside the free "
+        "tier's coverage, not an error (see ARCHITECTURE.md)."
+    )
     profiles.orderBy(F.col("total_events").desc()).select(
-        "src_ip", "total_events", "distinct_ports_hit", "attack_categories"
+        "src_ip", "total_events", "distinct_ports_hit", "geo.country", "geo.latitude",
+        "geo.longitude", "attack_categories",
     ).show(10, truncate=40)
 
     timeline = write_attack_timeline(spark)

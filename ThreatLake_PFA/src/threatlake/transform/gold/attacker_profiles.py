@@ -26,13 +26,22 @@ Columns:
                               attempts.
   attack_categories              sorted array of distinct attack_category
                               values this IP has triggered.
+  geo                            ``{country, city, latitude, longitude, asn,
+                              asn_org}``, looked up ONCE per distinct src_ip
+                              via a GeoEnricher (threatlake.enrichment.geo),
+                              not once per event. All fields null if no
+                              GeoEnricher was supplied, or if this
+                              particular IP isn't in MaxMind's database
+                              (private/reserved ranges, or coverage gaps in
+                              the free GeoLite2 tier - both normal, not
+                              errors) - this table is fully usable without
+                              geo data; it's best-effort enrichment, not a
+                              hard dependency.
 
-ThreatLake AI's version of this table also carries ``geo`` (country/city/
-lat/lon/ASN via a GeoIP lookup) and ``reputation_score`` (an AbuseIPDB
-lookup) - both genuinely optional, best-effort enrichments layered on top
-of this same aggregation. PFA leaves both out rather than wiring an
-enricher interface nothing here calls - see ARCHITECTURE.md's "Future
-extensions" section.
+ThreatLake AI's version of this table also carries ``reputation_score``
+(an AbuseIPDB lookup) - a second, genuinely optional enrichment PFA
+leaves out since it needs a real (rate-limited, signup-gated) API key -
+see ARCHITECTURE.md's "Future extensions" section.
 
 Idempotent write: see threatlake.transform.gold.writer.
 """
@@ -46,10 +55,13 @@ from pyspark.sql import functions as F
 
 from threatlake.common.config import Settings
 from threatlake.common.paths import silver_path
+from threatlake.enrichment.geo import enrich_geo
 from threatlake.transform.gold.writer import write_gold_table
 
 if TYPE_CHECKING:
     from pyspark.sql import DataFrame, SparkSession
+
+    from threatlake.enrichment.geo import GeoEnricher
 
 __all__ = ["build_attacker_profiles", "write_attacker_profiles"]
 
@@ -97,7 +109,11 @@ def _top_credentials_by_ip(df: DataFrame) -> DataFrame:
     )
 
 
-def build_attacker_profiles(silver_df: DataFrame) -> DataFrame:
+def build_attacker_profiles(
+    silver_df: DataFrame,
+    spark: SparkSession,
+    geo_enricher: GeoEnricher | None = None,
+) -> DataFrame:
     """Aggregate ``silver_df`` into the one-row-per-src_ip grain described above."""
     base = silver_df.filter(F.col("src_ip").isNotNull())
 
@@ -115,6 +131,36 @@ def build_attacker_profiles(silver_df: DataFrame) -> DataFrame:
         F.coalesce(F.col("top_credentials_tried"), F.array().cast(_EMPTY_CREDENTIALS_TYPE)),
     )
 
+    if geo_enricher is not None:
+        profiles = enrich_geo(profiles, spark, geo_enricher, ip_column="src_ip")
+        profiles = profiles.withColumn(
+            "geo",
+            F.struct(
+                F.col("geo_country").alias("country"),
+                F.col("geo_city").alias("city"),
+                F.col("geo_latitude").alias("latitude"),
+                F.col("geo_longitude").alias("longitude"),
+                F.col("geo_asn").alias("asn"),
+                F.col("geo_asn_org").alias("asn_org"),
+            ),
+        ).drop("geo_country", "geo_city", "geo_latitude", "geo_longitude", "geo_asn", "geo_asn_org")
+    else:
+        # A present struct with null fields, not a null struct: this must
+        # match the shape enrich_geo itself produces for an IP it can't
+        # resolve, so `geo.latitude` etc. is always safe to select
+        # downstream regardless of whether a GeoEnricher was supplied.
+        profiles = profiles.withColumn(
+            "geo",
+            F.struct(
+                F.lit(None).cast("string").alias("country"),
+                F.lit(None).cast("string").alias("city"),
+                F.lit(None).cast("double").alias("latitude"),
+                F.lit(None).cast("double").alias("longitude"),
+                F.lit(None).cast("int").alias("asn"),
+                F.lit(None).cast("string").alias("asn_org"),
+            ),
+        )
+
     return profiles.select(
         "src_ip",
         "first_seen",
@@ -124,12 +170,17 @@ def build_attacker_profiles(silver_df: DataFrame) -> DataFrame:
         "distinct_honeypots_hit",
         "top_credentials_tried",
         "attack_categories",
+        "geo",
     )
 
 
-def write_attacker_profiles(spark: SparkSession, settings: Settings | None = None) -> DataFrame:
+def write_attacker_profiles(
+    spark: SparkSession,
+    settings: Settings | None = None,
+    geo_enricher: GeoEnricher | None = None,
+) -> DataFrame:
     """Read silver, build attacker_profiles, and idempotently overwrite the gold table."""
     silver_df = spark.read.format("delta").load(silver_path("events", settings))
-    profiles = build_attacker_profiles(silver_df)
+    profiles = build_attacker_profiles(silver_df, spark, geo_enricher)
     write_gold_table(profiles, "attacker_profiles", settings)
     return profiles

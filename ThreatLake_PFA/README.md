@@ -27,8 +27,10 @@ hidden.
 - **A small API**: `GET /alerts`, `GET /attacker_profiles`,
   `GET /attacker_profiles/{ip}`, and `POST /copilot/query` (natural
   language → guardrailed SQL → real gold-table rows).
-- **A small dashboard**: one page, two tabs — an alert list and the
-  copilot chat panel.
+- **GeoIP enrichment**: `attacker_profiles` gets a real lat/lon per src_ip
+  via offline MaxMind GeoLite2 lookups (no API key, no network call).
+- **A small dashboard**: one page, three tabs — an alert list, an
+  attacker map, and the copilot chat panel.
 - **Local only**: plain filesystem paths, no Databricks/cloud branch.
 
 ## Project layout
@@ -42,19 +44,30 @@ src/threatlake/
     gold/       silver -> attacker_profiles, attack_timeline
   ml/           feature engineering, IsolationForest, the port-scan rule,
                 and the combined scorer that writes ml_scores
+  enrichment/   offline GeoIP lookups (MaxMind GeoLite2) for attacker_profiles
   copilot/      guardrails, NL->SQL generation, the system prompt builder
   api/          the FastAPI app and its 3 route groups
 config/         config/local.yaml (settings) + config/schema/cowrie.py (the
                 raw JSON schema bronze ingestion parses against)
 scripts/        generate_synthetic_cowrie.py, run_pipeline.py
-dashboard/      the small React + TypeScript app
-tests/unit/     bronze, silver, both detectors, guardrails, API endpoints
+dashboard/      the small React + TypeScript app (Alerts / Map / Copilot)
+tests/unit/     bronze, silver, both detectors, geo enrichment, guardrails,
+                API endpoints
 ```
 
 ## Running it
 
 Requires Python 3.11+, Java 21 (for Spark), and Node 18+ (for the
 dashboard).
+
+**GeoIP databases** (optional but recommended - powers `attacker_profiles`'
+lat/lon and the dashboard's Map tab): download `GeoLite2-City.mmdb` and
+`GeoLite2-ASN.mmdb` from a free MaxMind account
+(<https://www.maxmind.com/en/geolite2/signup>) and place both at
+`data/geoip/`. Without them, `scripts/run_pipeline.py` fails at the
+`GeoEnricher(...)` call in its GOLD step with a clear
+`FileNotFoundError` telling you exactly what's missing and where to get
+it - not a silent skip.
 
 ```bash
 # 1. Set up the environment (uv, or plain venv+pip works too)
@@ -105,10 +118,11 @@ rejection reason rather than a 500, which is itself worth seeing once.
 
 | Reused byte-for-byte unmodified | Adapted from the real logic | Newly written for PFA |
 |---|---|---|
-| `transform/silver/schema.py`, `transform/silver/cowrie.py` | `transform/gold/attacker_profiles.py` (no geo/reputation enrichment) | `ml/features.py` (small, honeypot-native features — no benchmark-transfer contract) |
-| `ml/rules.py` (`port_scan_rule`) | `ml/train_anomaly.py` (joblib, not MLflow) | `ml/score_events.py`, `scripts/generate_synthetic_cowrie.py`, the dashboard |
+| `transform/silver/schema.py`, `transform/silver/cowrie.py` | `transform/gold/attacker_profiles.py` (geo enrichment wired in; no reputation) | `ml/features.py` (small, honeypot-native features — no benchmark-transfer contract) |
+| `ml/rules.py` (`port_scan_rule`) | `ml/train_anomaly.py` (joblib, not MLflow) | `ml/score_events.py`, `scripts/generate_synthetic_cowrie.py`, the dashboard (incl. `MapView.tsx`) |
 | `transform/gold/writer.py`, `transform/gold/attack_timeline.py` | `copilot/guardrails.py` (`ALLOWED_TABLES` trimmed to 2 tables) | `common/config.py`, `common/paths.py` (trimmed shape) |
-| `copilot/text_to_sql.py`, `copilot/prompts.py`, `api/routers/copilot.py`, `api/deps.py`, `common/fs.py`, `config/schema/cowrie.py` | `api/_tables.py`, `api/schemas.py`, `api/app.py`, `api/routers/{alerts,attacker_profiles}.py` | |
+| `enrichment/geo.py` (`GeoEnricher`, `enrich_geo`) | `api/schemas.py`, `api/routers/attacker_profiles.py` (lat/lon flattened out of `geo`) | |
+| `copilot/text_to_sql.py`, `copilot/prompts.py`, `api/routers/copilot.py`, `api/deps.py`, `common/fs.py`, `config/schema/cowrie.py` | `api/_tables.py`, `api/app.py`, `api/routers/alerts.py` | |
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for the full reasoning behind each
 adaptation and everything left out entirely.

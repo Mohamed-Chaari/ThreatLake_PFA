@@ -53,6 +53,14 @@ def tmp_lakehouse(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, local_env: No
 #: Checked-in NDJSON fixtures for bronze ingestion tests.
 FIXTURES_LANDING = REPO_ROOT / "tests" / "unit" / "fixtures" / "landing"
 
+#: Official MaxMind test-data .mmdb files (small, public, made for exactly
+#: this purpose) - see https://github.com/maxmind/MaxMind-DB/tree/main/test-data.
+#: Deterministic and offline, unlike the real GeoLite2 databases (65MB/12MB,
+#: gitignored under data/geoip/ - see ARCHITECTURE.md), so tests never
+#: depend on those being present on disk.
+GEOIP_CITY_TEST_DB = REPO_ROOT / "tests" / "unit" / "fixtures" / "geoip" / "GeoIP2-City-Test.mmdb"
+GEOIP_ASN_TEST_DB = REPO_ROOT / "tests" / "unit" / "fixtures" / "geoip" / "GeoLite2-ASN-Test.mmdb"
+
 
 @pytest.fixture
 def bronze_settings(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, local_env: None) -> Settings:

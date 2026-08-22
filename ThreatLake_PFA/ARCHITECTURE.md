@@ -28,6 +28,7 @@ SILVER   transform/silver/cowrie.py (map_cowrie) + schema.py
 GOLD     transform/gold/{attacker_profiles,attack_timeline}.py
          two aggregated, analyst-facing Delta tables, each a full
          recompute from silver, written idempotently (writer.py).
+         attacker_profiles is additionally geo-enriched (see below).
         v
 ML       ml/train_anomaly.py fits an IsolationForest on ml/features.py's
          trailing-window feature space and saves it with joblib.
@@ -37,14 +38,52 @@ ML       ml/train_anomaly.py fits an IsolationForest on ml/features.py's
          the model, or both flagged a given event.
         v
 API      api/app.py exposes ml_scores+silver as GET /alerts,
-         attacker_profiles as GET /attacker_profiles(/{ip}), and a
-         guardrailed natural-language-to-SQL endpoint
+         attacker_profiles (incl. lat/lon) as GET /attacker_profiles(/{ip}),
+         and a guardrailed natural-language-to-SQL endpoint
          (copilot/{guardrails,text_to_sql,prompts}.py) as
          POST /copilot/query.
         v
-DASHBOARD  a 2-tab React app: an alert list, and a chat panel over the
+DASHBOARD  a 3-tab React app: an alert list, an attacker map
+           (react-leaflet + OpenStreetMap), and a chat panel over the
            copilot endpoint.
 ```
+
+## GeoIP enrichment and the Map tab
+
+`transform/gold/attacker_profiles.py` takes an optional `geo_enricher:
+GeoEnricher | None` parameter, wired to a real one in
+`scripts/run_pipeline.py`. `enrichment/geo.py` (`GeoEnricher`,
+`enrich_geo`) is reused byte-for-byte unmodified from ThreatLake_AI: it
+reads two local MaxMind GeoLite2 `.mmdb` files (City, ASN) via the
+official `geoip2` client - fully offline, no network call, no API key,
+just a free MaxMind account to download the databases from
+<https://www.maxmind.com/en/geolite2/signup>. The two files
+(`GeoLite2-City.mmdb`, `GeoLite2-ASN.mmdb`, ~65MB/~12MB) live at
+`data/geoip/` - gitignored (see `.gitignore`'s `data/` entry), same
+pattern as every other lakehouse artifact this project produces or
+consumes locally.
+
+An IP that doesn't resolve (private/reserved range, or simply outside
+MaxMind's free-tier coverage) yields a present struct with null fields,
+never a missing column or an error - `enrichment/geo.py`'s own docstring
+calls this out explicitly: a missing *database file* is a configuration
+error (raised at construction), but an unresolvable *IP* is normal.
+Measured on this project's own synthetic dataset (`scripts/
+generate_synthetic_cowrie.py`'s 62 distinct attacker IPs, uniformly
+random octets): **61 of 62 resolved to a real lat/lon** - the one miss
+landed in an address range MaxMind's free GeoLite2 tier doesn't map, not
+a bug. That ratio is reported by `run_pipeline.py` on every run rather
+than assumed.
+
+The dashboard's Map tab (`dashboard/src/MapView.tsx`) fetches
+`GET /attacker_profiles`, filters to the rows with a non-null lat/lon,
+and plots each as a circle marker on an OpenStreetMap base layer via
+`react-leaflet` - radius scaled by `total_events`, click for a popup
+showing `src_ip` and its event count. No clustering, no heatmap, no
+filters: one map, real markers, real data.
+
+`reputation_score` (AbuseIPDB) is the one enrichment ThreatLake AI has
+that PFA still doesn't - see "Future extensions" below for why.
 
 ## Why batch, not streaming
 
@@ -154,9 +193,10 @@ each one a real, scoped piece of work rather than a small tweak.
 - **A supervised classifier** trained on a labeled benchmark dataset
   (e.g. UNSW-NB15), applied to honeypot data, with an ablation study
   measuring the cost of the benchmark-to-honeypot feature-transfer gap.
-- **IP enrichment**: geolocation (GeoIP) and reputation (AbuseIPDB)
-  lookups on `attacker_profiles`, both genuinely optional/best-effort
-  additions on top of the aggregation that's already there.
+- **IP reputation** (AbuseIPDB) alongside the GeoIP enrichment
+  `attacker_profiles` already has - a second, genuinely optional
+  best-effort lookup this project leaves out only because it needs a
+  real (rate-limited, signup-gated) API key.
 - **MLflow** tracking and model-registry-based staged deployment, once
   there's more than one model or a retraining schedule to manage.
 - **A Databricks deployment target** — the original's `Settings`/paths
