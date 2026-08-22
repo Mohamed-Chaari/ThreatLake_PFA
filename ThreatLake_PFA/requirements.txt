@@ -1,0 +1,11 @@
+# Only what run_pipeline.py actually imports. Versions pinned to match
+# what the real ThreatLake_AI project uses (pyproject.toml there), so
+# this behaves the same way if you set up your own venv for it.
+#
+#   python3 -m venv .venv
+#   .venv/bin/pip install -r requirements.txt
+#   .venv/bin/python run_pipeline.py
+#
+# Or skip this entirely and reuse the real project's venv - see README.md.
+pyspark>=4.0.0,<4.1
+delta-spark>=4.0.0,<4.1

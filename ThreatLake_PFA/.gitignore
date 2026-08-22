@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+.Python
+
+# Virtual environment (create your own here if you don't reuse the real
+# project's - see README.md)
+.venv/
+venv/
+
+# Output of running run_pipeline.py: the Delta tables it writes, and
+# Spark's own local scratch/metastore directories.
+data/
+spark-warehouse/
+metastore_db/
+derby.log
+
+# OS / Editor
+.DS_Store
+.vscode/
+.idea/
