@@ -30,6 +30,10 @@ dashboard/node_modules/
 dashboard/dist/
 dashboard/*.tsbuildinfo
 
+# manage.sh's own runtime state: process logs and pidfiles
+logs/
+.run/
+
 # OS / Editor
 .DS_Store
 .vscode/
