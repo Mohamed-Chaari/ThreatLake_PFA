@@ -1,0 +1,137 @@
+:root {
+  color-scheme: light dark;
+  font-family: system-ui, sans-serif;
+}
+
+body {
+  margin: 0;
+  background: #0f1115;
+  color: #e6e6e6;
+}
+
+.app {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 1.5rem;
+}
+
+header {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  border-bottom: 1px solid #2a2d34;
+  padding-bottom: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+header h1 {
+  font-size: 1.25rem;
+  margin: 0;
+}
+
+nav button {
+  background: none;
+  border: 1px solid #3a3d44;
+  color: #e6e6e6;
+  padding: 0.4rem 0.9rem;
+  border-radius: 6px;
+  cursor: pointer;
+  margin-right: 0.5rem;
+}
+
+nav button.active {
+  background: #3a6df0;
+  border-color: #3a6df0;
+}
+
+.alerts-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.alerts-table th,
+.alerts-table td {
+  text-align: left;
+  padding: 0.4rem 0.6rem;
+  border-bottom: 1px solid #23262c;
+}
+
+.badge {
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+}
+
+.badge-rule {
+  background: #4a3d1a;
+  color: #f0c94a;
+}
+
+.badge-ml {
+  background: #1a3d4a;
+  color: #4ac9f0;
+}
+
+.badge-both {
+  background: #3d1a1a;
+  color: #f04a4a;
+}
+
+.copilot-view {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.copilot-turn {
+  background: #181b21;
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.copilot-question {
+  font-weight: 600;
+  margin: 0 0 0.5rem;
+}
+
+.copilot-sql,
+.copilot-rows {
+  background: #0f1115;
+  border-radius: 6px;
+  padding: 0.5rem;
+  overflow-x: auto;
+  font-size: 0.8rem;
+}
+
+.copilot-form {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.copilot-form input {
+  flex: 1;
+  padding: 0.5rem;
+  border-radius: 6px;
+  border: 1px solid #3a3d44;
+  background: #181b21;
+  color: #e6e6e6;
+}
+
+.copilot-form button {
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  border: none;
+  background: #3a6df0;
+  color: white;
+  cursor: pointer;
+}
+
+.hint {
+  color: #9099a8;
+}
+
+.error {
+  color: #f04a4a;
+}

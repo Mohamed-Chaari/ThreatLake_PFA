@@ -1,98 +1,114 @@
-# ThreatLake_PFA_Core
+# ThreatLake PFA
 
-Personal study reference — a stripped-down version of cowrie's path
-through the real ThreatLake_AI pipeline, with everything else removed,
-for understanding the core shape. The actual project (ThreatLake_AI) is
-the one that gets submitted/presented — this folder exists only so I can
-study the mechanics without the full complexity in front of me at once.
+A focused, local-only cyber-threat detection lakehouse — one honeypot
+source, a batch Bronze → Silver → Gold Delta pipeline, two attack
+detectors, and a small read-only API + dashboard.
 
-This is a separate, isolated copy: its own directory, its own fresh git
-history, no connection to the real project's GitHub remote. Nothing here
-gets submitted.
+This is a **deliberate subset** of a larger original design
+(`ThreatLake_AI`, a separate project). Real logic — the cowrie mapper,
+the silver schema, the port-scan rule, the copilot's guardrail/SQL-
+generation pipeline — is reused from it, some byte-for-byte unmodified,
+some adapted to a smaller scope. What was left out, and why, is
+documented honestly in [ARCHITECTURE.md](ARCHITECTURE.md) rather than
+hidden.
 
-## What's in here
+## Scope
 
-One source (`cowrie`), one pass through bronze → silver → a single
-detector, run by one script:
+- **One honeypot source**: cowrie (SSH/telnet) only.
+- **Batch, not streaming**: `scripts/run_pipeline.py` runs
+  bronze → silver → gold → train → score once, start to finish. No
+  Structured Streaming.
+- **Two gold tables**: `attacker_profiles` (one row per attacker IP) and
+  `attack_timeline` (hourly event counts by category/port).
+- **Two detectors**: an unsupervised IsolationForest anomaly detector and
+  a fixed-threshold port-scan rule, run alongside each other — see
+  `src/threatlake/ml/train_anomaly.py`'s docstring for why neither
+  replaces the other.
+- **A small API**: `GET /alerts`, `GET /attacker_profiles`,
+  `GET /attacker_profiles/{ip}`, and `POST /copilot/query` (natural
+  language → guardrailed SQL → real gold-table rows).
+- **A small dashboard**: one page, two tabs — an alert list and the
+  copilot chat panel.
+- **Local only**: plain filesystem paths, no Databricks/cloud branch.
+
+## Project layout
 
 ```
-run_pipeline.py                        <- run this
-study_pipeline/
-  spark_session.py                     <- minimal local Spark + Delta setup
-  bronze.py                            <- landing JSON -> parsed, stamped rows
-  silver.py                            <- bronze -> the unified event shape
-  detector.py                          <- silver -> port-scan flags
-  cowrie_schema.py                     <- Cowrie's raw JSON schema
-  sample_landing/cowrie/sample.ndjson  <- hand-crafted sample data to run against
 src/threatlake/
-  transform/silver/{cowrie,schema}.py  <- REAL code from the real project, unmodified
-  ml/rules.py                          <- REAL code from the real project, unmodified
+  common/       settings, filesystem paths, the local SparkSession factory
+  ingestion/    bronze: landing NDJSON -> parsed, quarantine-split Delta rows
+  transform/
+    silver/     bronze -> the unified event schema (cowrie mapper)
+    gold/       silver -> attacker_profiles, attack_timeline
+  ml/           feature engineering, IsolationForest, the port-scan rule,
+                and the combined scorer that writes ml_scores
+  copilot/      guardrails, NL->SQL generation, the system prompt builder
+  api/          the FastAPI app and its 3 route groups
+config/         config/local.yaml (settings) + config/schema/cowrie.py (the
+                raw JSON schema bronze ingestion parses against)
+scripts/        generate_synthetic_cowrie.py, run_pipeline.py
+dashboard/      the small React + TypeScript app
+tests/unit/     bronze, silver, both detectors, guardrails, API endpoints
 ```
-
-The two files under `src/threatlake/` are copied byte-for-byte from the
-real project — not simplified, not rewritten. Everything under
-`study_pipeline/` is new code written for this copy, standing in for the
-parts of the real pipeline that got removed.
-
-## What got removed, and why
-
-Only three moving parts survive: **bronze → silver → one detector.**
-Everything else that makes the real project a full lakehouse is gone:
-
-- **Three of the four honeypot sources** (Suricata, Dionaea, Heralding)
-  — only Cowrie's mapper remains.
-- **Streaming.** Bronze here is batch-only: read the landing folder once,
-  parse, write. The real project's Structured Streaming version, and the
-  per-source-table split it needed, aren't here.
-- **Quarantine.** The real project routes a line that fails to parse into
-  a separate queryable table, so nothing is silently lost. This copy just
-  drops it, with one explicit filter in `bronze.py` — and that filter
-  isn't decorative: running this script without it crashes, because a
-  garbage line makes `map_cowrie`'s `credentials_attempted` column come
-  out `NULL` instead of `true`/`false` (three-valued SQL logic on a null
-  `eventid`), which the schema forbids. The real quarantine step exists
-  precisely so `map_cowrie` never has to defend against that. See the
-  comment in `bronze.py` for the full story.
-- **Dedup.** No exact-match or fuzzy windowed deduplication. With one
-  source and a dozen sample rows there's nothing to deduplicate.
-- **Gold tables, enrichment (geo/reputation), the API, the dashboard,
-  the copilot.** None of them are needed to see bronze → silver → a
-  detector work end to end, so none of them are here.
-- **Two of the three detectors.** No XGBoost classifier, no
-  IsolationForest, no MLflow. Only `port_scan_rule` — the one detector
-  that's a plain function, not a trained model — survives, imported
-  unmodified from the real project's `ml/rules.py`. It's also
-  simplified in how it's *fed*: the real project computes "distinct
-  ports touched" over a trailing time window; this copy computes it
-  once over the whole sample batch. `detector.py` explains that
-  trade-off in its own docstring.
-- **The whole config/Settings/paths system.** No YAML layering, no
-  Databricks branch, no `THREATLAKE_ENV`. Paths are just plain local
-  folders (`study_pipeline/sample_landing/`, `data/`).
 
 ## Running it
 
-Needs `pyspark` and `delta-spark` (same versions the real project uses).
-Two ways to get them:
-
-**Quickest — reuse the real project's existing venv** (this only *reads*
-that Python interpreter to run this folder's own code; nothing here
-touches the real project's files — see the `sys.path` comment at the top
-of `run_pipeline.py` for exactly why that's safe):
+Requires Python 3.11+, Java 21 (for Spark), and Node 18+ (for the
+dashboard).
 
 ```bash
-/Users/MohamedChaari/Development/PFA/ThreatLake_AI/.venv/bin/python run_pipeline.py
+# 1. Set up the environment (uv, or plain venv+pip works too)
+uv venv --python 3.11 .venv
+uv pip install --python .venv/bin/python -e ".[dev]"
+
+# 2. Generate synthetic cowrie data (background traffic + an injected
+#    port-scan burst + an injected brute-force burst - see the script's
+#    own docstring)
+export JAVA_HOME=$(/usr/libexec/java_home -v 21)   # macOS; see your own JDK path otherwise
+.venv/bin/python scripts/generate_synthetic_cowrie.py
+
+# 3. Run the whole pipeline: bronze -> silver -> gold -> train -> score.
+#    Prints real row counts and samples at every stage.
+.venv/bin/python scripts/run_pipeline.py
+
+# 4. Start the API
+.venv/bin/uvicorn threatlake.api.app:app --app-dir src --port 8000
+
+# 5. In a second terminal, start the dashboard (proxies to the API above)
+cd dashboard
+npm install
+npm run dev
 ```
 
-**Fully standalone — your own venv:**
+Then open the dashboard's printed local URL, or hit the API directly:
 
 ```bash
-python3 -m venv .venv
-.venv/bin/pip install -r requirements.txt
-.venv/bin/python run_pipeline.py
+curl http://127.0.0.1:8000/alerts
+curl http://127.0.0.1:8000/attacker_profiles
+curl -X POST http://127.0.0.1:8000/copilot/query \
+  -H "Content-Type: application/json" \
+  -d '{"question": "which 5 attackers have the most events?"}'
 ```
 
-Either way, it prints three sections: bronze rows read, silver rows
-mapped, and which sample IP got flagged by the port-scan rule (one of
-the three sample attackers touches 7 distinct ports on purpose, to
-actually trip it).
+The copilot needs a free Gemini API key
+(<https://aistudio.google.com/app/apikey>) exported as `GEMINI_API_KEY`
+before starting uvicorn — without one, `/copilot/query` returns a clear
+rejection reason rather than a 500, which is itself worth seeing once.
+
+### Tests
+
+```bash
+.venv/bin/python -m pytest tests/ -q
+```
+
+## Reused from ThreatLake_AI vs. written for PFA
+
+| Reused byte-for-byte unmodified | Adapted from the real logic | Newly written for PFA |
+|---|---|---|
+| `transform/silver/schema.py`, `transform/silver/cowrie.py` | `transform/gold/attacker_profiles.py` (no geo/reputation enrichment) | `ml/features.py` (small, honeypot-native features — no benchmark-transfer contract) |
+| `ml/rules.py` (`port_scan_rule`) | `ml/train_anomaly.py` (joblib, not MLflow) | `ml/score_events.py`, `scripts/generate_synthetic_cowrie.py`, the dashboard |
+| `transform/gold/writer.py`, `transform/gold/attack_timeline.py` | `copilot/guardrails.py` (`ALLOWED_TABLES` trimmed to 2 tables) | `common/config.py`, `common/paths.py` (trimmed shape) |
+| `copilot/text_to_sql.py`, `copilot/prompts.py`, `api/routers/copilot.py`, `api/deps.py`, `common/fs.py`, `config/schema/cowrie.py` | `api/_tables.py`, `api/schemas.py`, `api/app.py`, `api/routers/{alerts,attacker_profiles}.py` | |
+
+See [ARCHITECTURE.md](ARCHITECTURE.md) for the full reasoning behind each
+adaptation and everything left out entirely.

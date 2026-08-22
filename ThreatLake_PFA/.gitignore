@@ -1,19 +1,34 @@
 # Python
 __pycache__/
 *.py[cod]
+*.egg-info/
 .Python
+build/
+dist/
 
-# Virtual environment (create your own here if you don't reuse the real
-# project's - see README.md)
+# Virtual environment
 .venv/
 venv/
 
-# Output of running run_pipeline.py: the Delta tables it writes, and
-# Spark's own local scratch/metastore directories.
+# Caches & coverage
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Output of scripts/run_pipeline.py and scripts/generate_synthetic_cowrie.py:
+# the Delta tables, the trained model, and Spark's own local scratch dirs.
 data/
 spark-warehouse/
 metastore_db/
 derby.log
+
+# Dashboard (Node)
+dashboard/node_modules/
+dashboard/dist/
+dashboard/*.tsbuildinfo
 
 # OS / Editor
 .DS_Store

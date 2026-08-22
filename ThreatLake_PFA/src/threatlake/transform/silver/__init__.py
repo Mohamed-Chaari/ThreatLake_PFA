@@ -1,9 +1,10 @@
-"""ThreatLake AI (study copy) - silver layer.
+"""Bronze rows -> the unified silver event model.
 
-In the real project this package re-exports four mappers (cowrie, suricata,
-dionaea, heralding) plus a combiner and a dedup step. This copy keeps only
-the cowrie mapper and the shared schema it conforms to - see cowrie.py and
-schema.py, and the top-level README.md for what was removed and why.
+ThreatLake AI maps four honeypot sources (cowrie, suricata, dionaea,
+heralding) into this same schema through four mappers plus a combiner and
+a dedup step. PFA is cowrie-only (see ARCHITECTURE.md), so only the
+cowrie mapper and the shared schema it conforms to are here - both copied
+byte-for-byte unmodified from ThreatLake AI.
 """
 
 from threatlake.transform.silver.cowrie import map_cowrie

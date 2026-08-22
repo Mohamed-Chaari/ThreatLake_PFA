@@ -1,1 +1,1 @@
-"""ThreatLake AI - transform layer."""
+"""ThreatLake PFA - transform layer: bronze rows -> silver events -> gold tables."""

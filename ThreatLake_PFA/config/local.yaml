@@ -1,0 +1,52 @@
+# ThreatLake PFA - local-only configuration.
+#
+# Trimmed from ThreatLake_AI's config/local.yaml: one honeypot source
+# (cowrie), two gold tables, no streaming section, no Databricks branch.
+# Same precedence rules as the original (see
+# threatlake.common.config.Settings): explicit kwargs > THREATLAKE_ env
+# vars > this file > field defaults.
+env: local
+
+storage:
+  root: ./data/lakehouse
+  quarantine: ./data/quarantine
+  landing: ./data/landing
+
+tables:
+  # No metastore locally - tables are path-based under storage.root.
+  bronze:
+    cowrie: bronze_cowrie
+  silver:
+    events: events
+  gold:
+    attacker_profiles: attacker_profiles
+    attack_timeline: attack_timeline
+    # Not a full-recompute aggregate like the two tables above - an
+    # append-only log, one row per scored event. Lives under tables.gold
+    # because it's the same physical layer (analyst-facing Delta output),
+    # not because it follows gold's overwrite convention. See
+    # threatlake.ml.score_events.
+    ml_scores: ml_scores
+
+spark:
+  app_name: threatlake-pfa-local
+  master: local[2]
+  shuffle_partitions: 8
+  log_level: WARN
+  conf:
+    spark.sql.session.timeZone: UTC
+    spark.databricks.delta.retentionDurationCheck.enabled: "false"
+    spark.sql.adaptive.enabled: "true"
+    spark.driver.memory: 2g
+    spark.ui.showConsoleProgress: "false"
+
+copilot:
+  provider: gemini
+  model: gemini-flash-latest
+  max_output_tokens: 2048
+
+ml:
+  # Where train_anomaly.py saves, and score_events.py loads, the fitted
+  # IsolationForest - see threatlake.ml.train_anomaly's own docstring for
+  # why this is a plain joblib file rather than an MLflow model registry.
+  model_path: ./data/models/isolation_forest.joblib
