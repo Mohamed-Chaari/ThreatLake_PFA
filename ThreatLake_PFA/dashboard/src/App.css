@@ -1,108 +1,700 @@
+/* Design tokens - a small, deliberate palette borrowed from ThreatLake
+   AI's own "signals-intelligence console" system (near-black void, a
+   distinct panel surface one step lighter, hairline borders everywhere,
+   a single restrained amber accent) rather than reproduced pixel-for-
+   pixel - that dashboard pulls in Tailwind + two @fontsource packages,
+   neither of which this small app adds. System font stacks only.
+
+   Deliberately avoided: purple/violet (the default-AI-tool accent),
+   heavy corner rounding, and diffuse drop shadows - a dense console
+   reads as designed through border contrast and tight spacing, not
+   soft SaaS chrome. One radius value everywhere (--radius, 4px) except
+   pills/dots, which are a genuinely different shape language (badges,
+   the live indicator), not an inconsistency. */
 :root {
-  color-scheme: light dark;
-  font-family: system-ui, sans-serif;
+  color-scheme: dark;
+
+  --bg: #0b0d0f;
+  --panel: #16181c;
+  --panel-raised: #1d2025;
+  --border: #262a30;
+
+  --amber: #d99a3d;
+  --amber-dim: #4a3d1a;
+
+  --text: #e8e6e1;
+  --text-dim: #9099a8;
+  --text-faint: #5c6169;
+
+  --rule: #f0c94a;
+  --rule-bg: #4a3d1a;
+  --ml: #4ac9f0;
+  --ml-bg: #1a3d4a;
+  --both: #f0605a;
+  --both-bg: #3d1a1a;
+
+  --font-sans: -apple-system, "Segoe UI", system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace;
+
+  --radius: 4px;
+
+  font-family: var(--font-sans);
 }
 
 body {
   margin: 0;
-  background: #0f1115;
-  color: #e6e6e6;
+  background: var(--bg);
+  color: var(--text);
+}
+
+/* One visible focus treatment, applied uniformly - every interactive
+   element (buttons, inputs, sort headers, tab switches) gets the exact
+   same outline rather than a per-component ad-hoc choice. */
+:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 2px;
 }
 
 .app {
-  max-width: 960px;
+  max-width: 1100px;
   margin: 0 auto;
-  padding: 1.5rem;
-}
-
-header {
+  padding: 1.75rem 1.5rem 3rem;
   display: flex;
-  align-items: center;
-  gap: 1.5rem;
-  border-bottom: 1px solid #2a2d34;
-  padding-bottom: 1rem;
-  margin-bottom: 1.5rem;
+  flex-direction: column;
+  gap: 1.25rem;
 }
 
-header h1 {
-  font-size: 1.25rem;
+.view-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+/* ---------------------------------------------------------------------
+   Header
+   ------------------------------------------------------------------- */
+.page-header h1 {
   margin: 0;
+  font-size: 1.4rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.page-header .subtitle {
+  margin: 0.25rem 0 0;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+/* ---------------------------------------------------------------------
+   Stat strip
+   ------------------------------------------------------------------- */
+.stat-strip {
+  display: flex;
+  gap: 0.85rem;
+  flex-wrap: wrap;
+  flex: 1;
+}
+
+.stat-card {
+  flex: 1 1 150px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.75rem 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.stat-card-wide {
+  flex: 2 1 240px;
+}
+
+.stat-label {
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-dim);
+}
+
+.stat-value {
+  font-size: 1.7rem;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-mono);
+}
+
+.stat-value-amber {
+  color: var(--amber);
+}
+
+.source-bar {
+  display: flex;
+  height: 4px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--panel-raised);
+}
+
+.source-bar-segment {
+  flex-grow: 0;
+  flex-basis: 0;
+  min-width: 0;
+}
+
+.source-bar-rule {
+  background: var(--rule);
+}
+
+.source-bar-ml {
+  background: var(--ml);
+}
+
+.source-bar-both {
+  background: var(--both);
+}
+
+.source-counts {
+  display: flex;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+  font-size: 0.78rem;
+  color: var(--text-dim);
+}
+
+.source-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-family: var(--font-mono);
+}
+
+.source-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  display: inline-block;
+}
+
+.source-count-rule .source-dot {
+  background: var(--rule);
+}
+
+.source-count-ml .source-dot {
+  background: var(--ml);
+}
+
+.source-count-both .source-dot {
+  background: var(--both);
+}
+
+/* ---------------------------------------------------------------------
+   Tabs - an underline style (no filled pill for the active state): a
+   filled amber pill on every visit read as the "friendly SaaS button"
+   look this pass is deliberately moving away from. Transparent
+   background throughout, a 2px accent border is the only thing that
+   moves between resting and active.
+   ------------------------------------------------------------------- */
+nav {
+  display: flex;
+  gap: 0.25rem;
+  border-bottom: 1px solid var(--border);
 }
 
 nav button {
   background: none;
-  border: 1px solid #3a3d44;
-  color: #e6e6e6;
-  padding: 0.4rem 0.9rem;
-  border-radius: 6px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-dim);
+  padding: 0.5rem 0.75rem;
+  margin-bottom: -1px;
+  font-size: 0.85rem;
+  font-family: inherit;
   cursor: pointer;
-  margin-right: 0.5rem;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+nav button:hover {
+  color: var(--text);
 }
 
 nav button.active {
-  background: #3a6df0;
-  border-color: #3a6df0;
+  color: var(--amber);
+  border-bottom-color: var(--amber);
 }
 
-.alerts-table {
+/* ---------------------------------------------------------------------
+   Card surface - the panel behind tables/charts (reused wherever a
+   block of content wants to read as "a designed panel" rather than raw
+   HTML sitting on the page background). Border-only definition, no
+   drop shadow - a dense console separates content with contrast, not
+   diffuse glow.
+   ------------------------------------------------------------------- */
+.card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem;
+}
+
+@media (max-width: 720px) {
+  .summary-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---------------------------------------------------------------------
+   Data tables (Alerts, Attackers) - shared look, both live inside a
+   .card and both feed off data the API already returns.
+   ------------------------------------------------------------------- */
+.alerts-table,
+.attackers-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.85rem;
+  font-size: 0.82rem;
 }
 
 .alerts-table th,
-.alerts-table td {
+.attackers-table th {
   text-align: left;
-  padding: 0.4rem 0.6rem;
-  border-bottom: 1px solid #23262c;
+  padding: 0.5rem 0.85rem;
+  background: var(--panel-raised);
+  color: var(--text-dim);
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.alerts-table td,
+.attackers-table td {
+  text-align: left;
+  padding: 0.5rem 0.85rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.alerts-table tbody tr:last-child td,
+.attackers-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.alerts-table tbody tr:nth-child(even),
+.attackers-table tbody tr:nth-child(even) {
+  background: rgba(255, 255, 255, 0.028);
+}
+
+.alerts-table tbody tr:hover,
+.attackers-table tbody tr:hover {
+  background: var(--panel-raised);
+}
+
+/* Attackers tab: clickable column headers for sorting. A plain button
+   reset inside the <th> rather than making the whole <th> clickable, so
+   the sort target keeps a real focus outline and a hand cursor exactly
+   where it's interactive. */
+.sort-header {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.sort-header:hover {
+  color: var(--text);
+}
+
+.sort-header-active {
+  color: var(--amber);
+}
+
+.sort-arrow {
+  font-size: 0.7rem;
+}
+
+.cred-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.cred-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-family: var(--font-mono);
+  background: var(--panel-raised);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.cred-pill-count {
+  color: var(--amber);
+}
+
+.cred-pill-more {
+  color: var(--text-faint);
+  font-family: var(--font-sans);
+}
+
+/* ---------------------------------------------------------------------
+   Panel section - the shared padding/layout for a small self-contained
+   block inside a .card (ActivityChart, TopPortsPanel): a label, then
+   content, nothing else. Kept intentionally generic so both components
+   (and anything similar added later) share one rhythm.
+   ------------------------------------------------------------------- */
+.panel-section {
+  padding: 0.85rem 1rem 0.95rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.panel-section:not(:last-child) {
+  border-bottom: 1px solid var(--border);
+}
+
+/* Activity chart - alert count bucketed by hour, computed client-side
+   from the already-fetched alerts list. Plain divs sized by percentage
+   height; no charting library. */
+.activity-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.4rem;
+  height: 56px;
+}
+
+.activity-bar-col {
+  flex: 1 1 auto;
+  max-width: 48px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  height: 100%;
+}
+
+.activity-bar-count {
+  font-size: 0.68rem;
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+}
+
+.activity-bar-track {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  align-items: flex-end;
+}
+
+.activity-bar-fill {
+  width: 100%;
+  min-height: 3px;
+  border-radius: 2px 2px 0 0;
+  background: linear-gradient(180deg, var(--amber) 0%, var(--amber-dim) 100%);
+}
+
+.activity-bar-label {
+  font-size: 0.62rem;
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+}
+
+/* Top targeted ports - the same "plain CSS bar" idea, laid out
+   horizontally since a ranked top-N list reads more naturally sideways. */
+.port-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.port-bar-row {
+  display: grid;
+  grid-template-columns: 2.5rem 1fr 1.75rem;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.port-bar-label {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--text);
+  text-align: right;
+}
+
+.port-bar-track {
+  height: 8px;
+  background: var(--panel-raised);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.port-bar-fill {
+  height: 100%;
+  min-width: 3px;
+  background: linear-gradient(90deg, var(--amber-dim) 0%, var(--amber) 100%);
+}
+
+.port-bar-count {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  text-align: right;
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-dim);
 }
 
 .badge {
   padding: 0.1rem 0.5rem;
   border-radius: 999px;
-  font-size: 0.75rem;
+  font-size: 0.72rem;
+  font-family: var(--font-mono);
 }
 
 .badge-rule {
-  background: #4a3d1a;
-  color: #f0c94a;
+  background: var(--rule-bg);
+  color: var(--rule);
 }
 
 .badge-ml {
-  background: #1a3d4a;
-  color: #4ac9f0;
+  background: var(--ml-bg);
+  color: var(--ml);
 }
 
 .badge-both {
-  background: #3d1a1a;
-  color: #f04a4a;
+  background: var(--both-bg);
+  color: var(--both);
 }
 
+/* ---------------------------------------------------------------------
+   Overview
+   ------------------------------------------------------------------- */
+.overview-toolbar {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.live-indicator {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  white-space: nowrap;
+  padding-top: 0.3rem;
+}
+
+.live-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--amber);
+  display: inline-block;
+  animation: live-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes live-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .live-dot {
+    animation: none;
+  }
+}
+
+.overview-grid {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.overview-grid-3 {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.overview-grid-2 {
+  grid-template-columns: 1fr 1fr;
+}
+
+@media (max-width: 900px) {
+  .overview-grid-3 {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .overview-grid-3,
+  .overview-grid-2 {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Clicking a row (Attackers tab, Top attackers preview) opens
+   AttackerDrawer - a plain background-on-hover is enough affordance
+   alongside the pointer cursor, no extra chrome needed. */
+.clickable-row {
+  cursor: pointer;
+}
+
+/* A poll refresh changing a stat-strip number remounts that <span> (see
+   StatStrip's key={value}), which restarts this animation - a brief
+   settle-in instead of a jump-cut. */
+.fade-update {
+  animation: fade-update 0.4s ease;
+}
+
+@keyframes fade-update {
+  from {
+    opacity: 0.3;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* A row whose src_ip is new since the previous poll (see App.tsx's
+   newAttackerIps diff) flashes once on mount - real signal, not a
+   decorative loop. */
+.row-flash {
+  animation: row-flash 2s ease-out;
+}
+
+@keyframes row-flash {
+  from {
+    background: var(--amber-dim);
+  }
+  to {
+    background: transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fade-update,
+  .row-flash {
+    animation: none;
+  }
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.7rem 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.panel-body {
+  padding: 0.4rem 0.25rem;
+}
+
+.text-link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--amber);
+  font-size: 0.75rem;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.text-link:hover {
+  text-decoration: underline;
+}
+
+.preview-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.preview-table td {
+  padding: 0.4rem 0.85rem;
+}
+
+.preview-table tbody tr:hover {
+  background: var(--panel-raised);
+}
+
+.preview-rank {
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  width: 1.5rem;
+}
+
+.preview-count {
+  text-align: right;
+  color: var(--text);
+}
+
+/* ---------------------------------------------------------------------
+   Copilot
+   ------------------------------------------------------------------- */
 .copilot-view {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 0.85rem;
 }
 
 .copilot-turn {
-  background: #181b21;
-  border-radius: 8px;
-  padding: 0.75rem 1rem;
-  margin-bottom: 0.75rem;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.75rem 0.9rem;
+  margin-bottom: 0.6rem;
 }
 
 .copilot-question {
   font-weight: 600;
-  margin: 0 0 0.5rem;
+  margin: 0 0 0.4rem;
 }
 
 .copilot-sql,
 .copilot-rows {
-  background: #0f1115;
-  border-radius: 6px;
-  padding: 0.5rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.55rem 0.7rem;
   overflow-x: auto;
-  font-size: 0.8rem;
+  font-size: 0.78rem;
+  font-family: var(--font-mono);
 }
 
 .copilot-form {
@@ -112,33 +704,62 @@ nav button.active {
 
 .copilot-form input {
   flex: 1;
-  padding: 0.5rem;
-  border-radius: 6px;
-  border: 1px solid #3a3d44;
-  background: #181b21;
-  color: #e6e6e6;
+  padding: 0.5rem 0.7rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+  font-size: 0.85rem;
+  font-family: inherit;
 }
 
+.copilot-form input:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 1px;
+}
+
+/* A bordered/outline action button, not a solid amber fill - the amber
+   accent stays reserved for data (bars, the key stat, live/active
+   indicators) rather than doubling as button chrome. */
 .copilot-form button {
   padding: 0.5rem 1rem;
-  border-radius: 6px;
-  border: none;
-  background: #3a6df0;
-  color: white;
+  border-radius: var(--radius);
+  border: 1px solid var(--amber);
+  background: none;
+  color: var(--amber);
+  font-size: 0.85rem;
+  font-weight: 600;
   cursor: pointer;
+  transition: background 0.15s ease;
 }
 
+.copilot-form button:hover:not(:disabled) {
+  background: var(--amber-dim);
+}
+
+.copilot-form button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* ---------------------------------------------------------------------
+   Map
+   ------------------------------------------------------------------- */
 .map-view {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 0.6rem;
 }
 
 .map-container {
-  height: 480px;
+  height: 440px;
   width: 100%;
-  border-radius: 8px;
-  border: 1px solid #2a2d34;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+}
+
+.map-container-compact {
+  height: 220px;
 }
 
 /* Leaflet's own popup chrome is styled inline by the library for the
@@ -146,22 +767,295 @@ nav button.active {
    dashboard's dark/amber theme instead of showing a jarring white box. */
 .leaflet-popup-content-wrapper,
 .leaflet-popup-tip {
-  background: #181b21;
-  color: #e6e6e6;
+  background: var(--panel);
+  color: var(--text);
 }
 
 .leaflet-popup-content-wrapper {
-  border-radius: 8px;
+  border-radius: var(--radius);
 }
 
 .leaflet-popup-content strong {
-  color: #f0c94a;
+  color: var(--amber);
 }
 
+/* ---------------------------------------------------------------------
+   Category donut chart (Overview) - a real SVG pie/donut, stacked
+   <circle> strokes rather than a charting library. See CategoryChart.tsx.
+   ------------------------------------------------------------------- */
+.donut-row {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+}
+
+.donut-chart {
+  width: 108px;
+  height: 108px;
+  flex-shrink: 0;
+}
+
+.donut-chart circle {
+  transition: stroke-dasharray 0.3s ease;
+}
+
+.donut-center-value {
+  fill: var(--text);
+  font-size: 20px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+}
+
+.donut-center-label {
+  fill: var(--text-faint);
+  font-size: 7px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.donut-legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.donut-legend li {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.78rem;
+}
+
+.donut-legend-label {
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.donut-legend-count {
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  margin-left: auto;
+  padding-left: 0.5rem;
+  white-space: nowrap;
+}
+
+/* ---------------------------------------------------------------------
+   Search / filter input (Alerts, Attackers tabs) - client-side only.
+   ------------------------------------------------------------------- */
+.search-input-wrap {
+  position: relative;
+  max-width: 280px;
+}
+
+.search-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.45rem 1.9rem 0.45rem 0.7rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+  font-size: 0.82rem;
+  font-family: var(--font-mono);
+}
+
+.search-input::placeholder {
+  color: var(--text-faint);
+  font-family: var(--font-sans);
+}
+
+.search-input:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 1px;
+}
+
+.search-clear {
+  position: absolute;
+  right: 0.4rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: var(--text-faint);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0.15rem 0.3rem;
+}
+
+.search-clear:hover {
+  color: var(--text);
+}
+
+/* ---------------------------------------------------------------------
+   Attacker detail drawer
+   ------------------------------------------------------------------- */
+.drawer-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+  z-index: 40;
+}
+
+.drawer-overlay-open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(400px, 100vw);
+  background: var(--panel);
+  border-left: 1px solid var(--border);
+  transform: translateX(100%);
+  transition: transform 0.25s ease;
+  z-index: 41;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.drawer-open {
+  transform: translateX(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .drawer,
+  .drawer-overlay {
+    transition: none;
+  }
+}
+
+.drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  background: var(--panel);
+}
+
+.drawer-title {
+  font-size: 0.95rem;
+  color: var(--text);
+}
+
+.drawer-close {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 1.3rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0.2rem 0.4rem;
+}
+
+.drawer-close:hover {
+  color: var(--text);
+}
+
+.drawer-body {
+  display: flex;
+  flex-direction: column;
+}
+
+.drawer-stats {
+  display: flex;
+  gap: 1.5rem;
+  padding: 0.9rem 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.drawer-stats > div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.drawer-stats .stat-value {
+  font-size: 1.4rem;
+}
+
+.category-pill {
+  background: none;
+  border: 1px solid;
+}
+
+/* ---------------------------------------------------------------------
+   Timeline (drawer: first_seen -> last_seen)
+   ------------------------------------------------------------------- */
+.timeline {
+  display: flex;
+  align-items: center;
+}
+
+.timeline-point {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  flex-shrink: 0;
+}
+
+.timeline-point:last-child {
+  align-items: flex-end;
+  text-align: right;
+}
+
+.timeline-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--amber);
+}
+
+.timeline-point:last-child .timeline-dot {
+  align-self: flex-end;
+}
+
+.timeline-label {
+  font-size: 0.68rem;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.timeline-time {
+  font-size: 0.78rem;
+  color: var(--text);
+}
+
+.timeline-line {
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+  margin: 0 0.5rem;
+  margin-bottom: 1.1rem;
+}
+
+/* ---------------------------------------------------------------------
+   Shared
+   ------------------------------------------------------------------- */
 .hint {
-  color: #9099a8;
+  color: var(--text-dim);
+  font-size: 0.85rem;
 }
 
 .error {
-  color: #f04a4a;
+  color: var(--both);
+  font-size: 0.85rem;
 }

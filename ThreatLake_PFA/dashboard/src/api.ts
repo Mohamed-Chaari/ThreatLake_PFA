@@ -32,6 +32,12 @@ export interface CopilotQueryResponse {
   row_count: number | null;
 }
 
+export interface CredentialAttempt {
+  username: string | null;
+  password: string | null;
+  count: number;
+}
+
 export interface AttackerProfile {
   src_ip: string;
   first_seen: string | null;
@@ -39,6 +45,7 @@ export interface AttackerProfile {
   total_events: number;
   distinct_ports_hit: number;
   distinct_honeypots_hit: number;
+  top_credentials_tried: CredentialAttempt[];
   attack_categories: string[];
   // Null when this src_ip didn't resolve via MaxMind GeoLite2 (private/
   // reserved range, or a free-tier coverage gap) - see

@@ -17,6 +17,7 @@ Every rejection is raised as :class:`GuardrailRejectionError` with a specific,
 honest reason - the API layer logs it and returns it to the caller
 verbatim, never a generic "invalid query".
 """
+ 
 
 from __future__ import annotations
 
