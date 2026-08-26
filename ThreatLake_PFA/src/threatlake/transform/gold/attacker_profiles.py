@@ -12,7 +12,7 @@ Columns:
   total_events                count(*).
   distinct_ports_hit           count(distinct dst_port).
   distinct_honeypots_hit        count(distinct source_type). Always 1 in
-                              PFA (cowrie-only, see ARCHITECTURE.md) -
+                              PFA (single-source, see ARCHITECTURE.md) -
                               kept as a real column rather than dropped,
                               since it is exactly what makes this table's
                               shape unchanged if a second source is added

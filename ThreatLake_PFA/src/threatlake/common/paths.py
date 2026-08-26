@@ -68,7 +68,7 @@ def layer_path(layer: Layer, table: str, settings: Settings | None = None) -> st
 
 
 def bronze_path(source_type: str, settings: Settings | None = None) -> str:
-    """Location of a source type's own bronze table (only ``cowrie`` here)."""
+    """Location of a source type's own bronze table (only ``honeydb`` here)."""
     return layer_path("bronze", source_type, settings)
 
 
@@ -83,7 +83,7 @@ def gold_path(table: str, settings: Settings | None = None) -> str:
 
 
 def landing_path(source: str, settings: Settings | None = None) -> str:
-    """Directory the cowrie log source drops raw NDJSON files into, pre-ingest."""
+    """Directory the honeydb log source drops raw NDJSON files into, pre-ingest."""
     settings = settings or get_settings()
     name = _validate_segment(source, "source")
     return _join(_normalise_root(settings.storage.landing), name)

@@ -10,15 +10,17 @@ loud.
 ## Data flow
 
 ```
-data/landing/cowrie/*.ndjson
-        |  scripts/generate_synthetic_cowrie.py writes these
+data/landing/honeydb/*.ndjson
+        |  scripts/fetch_honeydb.py fetches these - REAL events, from
+        |  HoneyDB's community sensor-data feed (see "Real data, not
+        |  synthetic" below)
         v
 BRONZE   ingestion/bronze_writer.py + bronze_transform.py
-         parses each line against config/schema/cowrie.py, splits
+         parses each line against config/schema/honeydb.py, splits
          malformed JSON into a quarantine table, appends the rest to
-         the bronze_cowrie Delta table (partitioned by ingest_date).
+         the bronze_honeydb Delta table (partitioned by ingest_date).
         v
-SILVER   transform/silver/cowrie.py (map_cowrie) + schema.py
+SILVER   transform/silver/honeydb.py (map_honeydb) + schema.py
          maps bronze rows to one unified event schema - the same shape
          every honeypot source in the original project maps into.
          Full recompute + overwrite on every pipeline run (see
@@ -68,12 +70,15 @@ MaxMind's free-tier coverage) yields a present struct with null fields,
 never a missing column or an error - `enrichment/geo.py`'s own docstring
 calls this out explicitly: a missing *database file* is a configuration
 error (raised at construction), but an unresolvable *IP* is normal.
-Measured on this project's own synthetic dataset (`scripts/
-generate_synthetic_cowrie.py`'s 62 distinct attacker IPs, uniformly
-random octets): **61 of 62 resolved to a real lat/lon** - the one miss
-landed in an address range MaxMind's free GeoLite2 tier doesn't map, not
-a bug. That ratio is reported by `run_pipeline.py` on every run rather
-than assumed.
+Measured on a real run against HoneyDB data (3,000 events fetched via
+`scripts/fetch_honeydb.py`, 2026-08-25): **94 of 94 distinct attacker IPs
+resolved to a real lat/lon** - a real internet-scanner population is
+overwhelmingly datacenter/cloud-hosted, so it resolves at a much higher
+rate than the old synthetic generator's uniformly-random octets did (61
+of 62). Not every run will hit 100% - a private/reserved-range IP or a
+free-tier coverage gap is still normal, not an error - but this is what
+one real day of HoneyDB traffic actually looked like. That ratio is
+reported by `run_pipeline.py` on every run rather than assumed.
 
 The dashboard's Map tab (`dashboard/src/MapView.tsx`) fetches
 `GET /attacker_profiles`, filters to the rows with a non-null lat/lon,
@@ -90,8 +95,9 @@ that PFA still doesn't - see "Future extensions" below for why.
 The original project runs a live Structured Streaming path (bronze and
 silver stream continuously, a websocket pushes new alerts as they're
 scored) alongside a separately-scheduled batch gold job. PFA has no
-live data source to stream from — the synthetic generator writes one
-batch, once — so every one of those moving parts (checkpointing,
+live data source to stream from — `scripts/fetch_honeydb.py` fetches one
+real batch of already-happened events per invocation, not a live feed —
+so every one of those moving parts (checkpointing,
 watermark-based dedup, a streaming-vs-batch decoupling story, a
 websocket poll loop) would be complexity with nothing to exercise. A
 single `scripts/run_pipeline.py` script that runs the whole chain once
@@ -137,10 +143,76 @@ unified silver event shape. Adding a second source is mechanically a new
 `config/schema/<source>.py` file, a new `transform/silver/<source>.py`
 mapper, and one more entry in `ingestion/schemas.SOURCE_TYPES` — the
 architecture doesn't change, only the number of sources feeding it. PFA
-keeps cowrie because it alone already exercises every stage of the
-pipeline (connections, credential attempts, command execution, malware
-downloads) and because a second/third/fourth near-identical mapper
-wouldn't teach a different lesson than the first.
+keeps exactly one active source because a second/third/fourth
+near-identical mapper wouldn't teach a different lesson than the first —
+the point of this project is the pipeline, not the breadth of sources
+feeding it.
+
+## Real data, not synthetic: why HoneyDB
+
+**PFA now ingests real events.** The active source is
+[HoneyDB](https://honeydb.io)'s community sensor-data feed
+(`GET /api/sensor-data`) — real connections from real internet scanners
+and bots, hitting real honeypot sensors run by HoneyDB's community, not
+data this project invented. `scripts/fetch_honeydb.py` fetches it over a
+plain authenticated HTTP call (`X-HoneyDb-ApiId`/`X-HoneyDb-ApiKey`
+headers — same "small, auditable HTTP call over a new SDK dependency"
+choice `copilot/text_to_sql.py` already made for Gemini) and writes it as
+NDJSON into the landing zone, exactly where `scripts/generate_synthetic_
+cowrie.py` used to write its fabricated batch.
+
+**What changed, concretely:**
+
+- **Source**: `cowrie` (SSH/Telnet, synthetic) → `honeydb` (13 emulated
+  services — SSH, Telnet, FTP, HTTP, RDP, SIP, SNMP, Modbus, MSSQL,
+  PostgreSQL, Redis, LDAP, TFTP — real).
+- **Data origin**: a fixed-seed Python generator fabricating background
+  noise plus one injected port-scan burst and one injected brute-force
+  burst → `honeydb`'s own community network, whatever actually happened
+  that day.
+- **`ingestion/schemas.SOURCE_TYPES`**: `("cowrie",)` → `("honeydb",)`.
+  `config/schema/cowrie.py`, `transform/silver/cowrie.py`, and
+  `scripts/generate_synthetic_cowrie.py` are all still here, still
+  tested (`tests/unit/test_silver_mappers.py`), and still fully
+  functional — just not registered in `SOURCE_TYPES`, so
+  `write_bronze("cowrie", ...)` would now reject with a clear
+  `SchemaError` rather than silently doing something. Swapping back is a
+  one-line change to that tuple plus re-pointing `scripts/run_pipeline.py`
+  at `map_cowrie` — the mechanism this whole section already describes
+  for *adding* a source works identically for *reactivating* one.
+
+**Honest limitations of HoneyDB's feed vs. Cowrie's, documented rather
+than hidden** (see `transform/silver/honeydb.py`'s own module docstring
+for the full field-by-field reasoning):
+
+- **Flat, 2-way severity** (`connection` / `service_probe`, severity 1 or
+  2) instead of Cowrie's 8-way `eventid`-keyed table (severity 1–5).
+  HoneyDB's own event taxonomy is `CONNECT`/`INFO`/`RX`/`TX` — far
+  coarser than Cowrie's per-action `eventid` strings, so there is
+  genuinely less structure to build a richer taxonomy from without
+  inventing distinctions the source data doesn't carry.
+- **No credentials ever**: `credentials_attempted` is always `False`,
+  `attempted_username`/`attempted_password` always `null`. The community
+  sensor-data feed never surfaces submitted credentials the way Cowrie's
+  `login.success`/`login.failed` events do — this project doesn't
+  reconstruct them from the raw `data` payload (hex-encoded bytes,
+  dropped rather than parsed; see the mapper's own docstring for what's
+  dropped and why).
+- **No destination context**: `dst_ip`/`dst_port`/`src_port` are always
+  `null` — the feed never reports which local address/port a sensor was
+  listening on, or the attacker's source port. Inferring a port from
+  `service` (e.g. assuming "SSH" means port 22) would be a guess
+  presented as fact; left null instead, the same "don't invent what
+  wasn't observed" rule `config/schema/cowrie.py`'s own docstring already
+  follows for fields it couldn't confirm.
+- **No human-written `description`**: Cowrie's `message` field is
+  free text written by Cowrie itself; HoneyDB has no equivalent, so
+  `description` is `null` rather than synthesized from other fields and
+  presented as if it came from the source.
+
+None of this is a defect in the swap — it is what real HoneyDB data
+actually looks like, mapped honestly rather than padded out to match
+Cowrie's richer (but synthetic) shape.
 
 ## Why joblib, not MLflow
 

@@ -46,7 +46,12 @@ GEMINI_API_KEY_ENV_VAR = "GEMINI_API_KEY"
 _GEMINI_URL_TEMPLATE = (
     "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 )
-_REQUEST_TIMEOUT_SECONDS = 30
+#: 30s was too tight even with thinkingConfig.thinkingBudget=0 disabling
+#: the reasoning pass below - real, observed latency against the live API
+#: (repeated direct calls, thinking disabled) still landed in the 55-70s
+#: range. 90s gives real headroom above that observed ceiling rather than
+#: a number picked to just barely clear one lucky measurement.
+_REQUEST_TIMEOUT_SECONDS = 90
 
 _SQL_FENCE_PATTERN = re.compile(r"```(?:sql)?\s*(.*?)```", re.DOTALL | re.IGNORECASE)
 
@@ -91,6 +96,15 @@ def _call_gemini(system_prompt: str, question: str, settings: Settings, api_key:
         "generationConfig": {
             "temperature": 0,
             "maxOutputTokens": settings.copilot.max_output_tokens,
+            # Confirmed empirically: "gemini-flash-latest" currently resolves
+            # to a reasoning ("thinking") model variant, which - especially
+            # against this endpoint's longer, rule-heavy system prompt - can
+            # spend 30-90+ seconds on internal reasoning before answering a
+            # question that has exactly one correct, mechanical SQL
+            # translation. thinkingBudget=0 disables that reasoning pass;
+            # consistent with temperature=0 above, this is a deterministic
+            # translation task, not one that benefits from deliberation.
+            "thinkingConfig": {"thinkingBudget": 0},
         },
     }
     try:

@@ -76,6 +76,25 @@ resolve_java_home() {
     export JAVA_HOME
 }
 
+# Load .env into THIS script's environment, so every child process started
+# below (the pipeline, uvicorn) inherits it. Nothing in the Python code
+# does this itself - threatlake.copilot.text_to_sql reads GEMINI_API_KEY
+# straight from os.environ at call time, by design (see that module's own
+# docstring: an API key belongs in its provider's own conventional env
+# var, never threaded through Settings or a YAML file) - which means a
+# key sitting in .env on disk does nothing until something actually
+# exports it into the process tree. This is that something.
+load_dotenv() {
+    env_file="$SCRIPT_DIR/.env"
+    if [ -f "$env_file" ]; then
+        set -a
+        # shellcheck disable=SC1090
+        source "$env_file"
+        set +a
+        echo "Loaded $env_file"
+    fi
+}
+
 # Poll a URL until it answers or the timeout elapses. Used so `start`
 # reports what actually happened, not just "a process was launched".
 wait_for_http() {
@@ -183,6 +202,7 @@ start_dashboard() {
 cmd_start() {
     resolve_java_home
     export THREATLAKE_CONFIG_DIR="$SCRIPT_DIR/config"
+    load_dotenv
     require_venv
     mkdir -p "$LOG_DIR" "$RUN_DIR"
 

@@ -18,7 +18,7 @@ from threatlake.common.paths import (
 
 def test_bronze_path_resolves_under_storage_root(tmp_lakehouse: object) -> None:
     root = storage_root(tmp_lakehouse)
-    assert bronze_path("cowrie", tmp_lakehouse) == f"{root}/bronze/bronze_cowrie"
+    assert bronze_path("honeydb", tmp_lakehouse) == f"{root}/bronze/bronze_honeydb"
 
 
 def test_silver_path_resolves_logical_key(tmp_lakehouse: object) -> None:

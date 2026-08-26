@@ -1,6 +1,6 @@
-"""Registry of explicit source schemas for cowrie bronze ingestion.
+"""Registry of explicit source schemas for bronze ingestion.
 
-The schema lives in ``config/schema/cowrie.py`` rather than ``src/``
+The schema lives in ``config/schema/<source>.py`` rather than ``src/``
 because, like ``config/local.yaml``, it describes *this deployment's*
 known data shape and should be editable without a code change. It is
 discovered through the same config-directory mechanism as
@@ -8,11 +8,18 @@ discovered through the same config-directory mechanism as
 file path.
 
 ThreatLake AI registers four source types (suricata, cowrie, dionaea,
-heralding) here. PFA is cowrie-only (see ARCHITECTURE.md), so
+heralding) here. PFA is single-source (see ARCHITECTURE.md), so
 ``SOURCE_TYPES`` has exactly one entry - but the loader mechanism itself
 is unchanged, so adding a second source later is a one-line addition to
 ``SOURCE_TYPES``/``_MODULE_BY_SOURCE`` plus a new schema file, not a
 redesign.
+
+ACTIVE SOURCE: honeydb (real HoneyDB community sensor-data - see
+ARCHITECTURE.md). cowrie was the original active source, backed by a
+synthetic generator; it is kept fully working (schema, mapper, generator
+all still here, still tested) and registered below so ``source_schema
+("cowrie")`` still resolves, but it is deliberately absent from
+``SOURCE_TYPES`` - not the pipeline's active path.
 """
 
 from __future__ import annotations
@@ -28,11 +35,12 @@ if TYPE_CHECKING:
 
 __all__ = ["SOURCE_TYPES", "SchemaError", "source_schema"]
 
-#: Honeypot source types this deployment has explicit schemas for.
-SOURCE_TYPES: tuple[str, ...] = ("cowrie",)
+#: Honeypot source types the pipeline actively ingests.
+SOURCE_TYPES: tuple[str, ...] = ("honeydb",)
 
 _MODULE_BY_SOURCE = {
     "cowrie": "cowrie.py",
+    "honeydb": "honeydb.py",
 }
 
 

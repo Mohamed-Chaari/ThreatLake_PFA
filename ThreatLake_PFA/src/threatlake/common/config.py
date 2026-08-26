@@ -52,7 +52,7 @@ class StorageSettings(BaseModel):
 
     root: str = Field(description="Root of the lakehouse; bronze/silver/gold hang off this.")
     quarantine: str = Field(description="Root for records rejected by the schema gate.")
-    landing: str = Field(description="Directory the cowrie log source drops raw NDJSON into.")
+    landing: str = Field(description="Directory the honeydb log source drops raw NDJSON into.")
 
     @field_validator("root", "quarantine", "landing")
     @classmethod

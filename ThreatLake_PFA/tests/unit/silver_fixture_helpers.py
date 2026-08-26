@@ -1,5 +1,5 @@
 """Shared helper for building small, hand-computable SILVER_EVENT_SCHEMA
-DataFrames directly (bypassing bronze/map_cowrie) - used by the gold and
+DataFrames directly (bypassing bronze/map_honeydb) - used by the gold and
 feature/detector tests, each of which only cares about a handful of
 fields.
 
@@ -28,13 +28,13 @@ def silver_row(**overrides: object) -> dict[str, object]:
         "event_id": "id-" + str(event_id),
         "event_time": _DEFAULT_TIME,
         "ingest_date": date(2026, 8, 2),
-        "source_type": "cowrie",
-        "source_event_type": "cowrie.session.connect",
+        "source_type": "honeydb",
+        "source_event_type": "SSH.CONNECT",
         "src_ip": "203.0.113.42",
         "src_port": 51422,
         "dst_ip": "10.0.0.5",
         "dst_port": 2222,
-        "protocol": "ssh",
+        "protocol": "tcp",
         "attack_category": "connection",
         "severity": 1,
         "session_id": "s1",
@@ -43,7 +43,7 @@ def silver_row(**overrides: object) -> dict[str, object]:
         "attempted_password": None,
         "payload_hash": None,
         "description": None,
-        "raw_ref": "cowrie:" + str(event_id),
+        "raw_ref": "honeydb:" + str(event_id),
     }
     row.update(overrides)
     return row

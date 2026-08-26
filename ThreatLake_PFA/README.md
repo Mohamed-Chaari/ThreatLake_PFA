@@ -5,16 +5,20 @@ source, a batch Bronze → Silver → Gold Delta pipeline, two attack
 detectors, and a small read-only API + dashboard.
 
 This is a **deliberate subset** of a larger original design
-(`ThreatLake_AI`, a separate project). Real logic — the cowrie mapper,
-the silver schema, the port-scan rule, the copilot's guardrail/SQL-
-generation pipeline — is reused from it, some byte-for-byte unmodified,
-some adapted to a smaller scope. What was left out, and why, is
-documented honestly in [ARCHITECTURE.md](ARCHITECTURE.md) rather than
-hidden.
+(`ThreatLake_AI`, a separate project). Real logic — the silver schema,
+the port-scan rule, the copilot's guardrail/SQL-generation pipeline — is
+reused from it, some byte-for-byte unmodified, some adapted to a smaller
+scope. What was left out, and why, is documented honestly in
+[ARCHITECTURE.md](ARCHITECTURE.md) rather than hidden.
 
 ## Scope
 
-- **One honeypot source**: cowrie (SSH/telnet) only.
+- **One honeypot source, real data**: [HoneyDB](https://honeydb.io)'s
+  community sensor-data feed — real connections from real internet
+  scanners, not synthetic. (The project's original active source,
+  cowrie/SSH-Telnet with a synthetic generator, is kept fully working
+  for reference but no longer wired in — see ARCHITECTURE.md's "Real
+  data, not synthetic" section.)
 - **Batch, not streaming**: `scripts/run_pipeline.py` runs
   bronze → silver → gold → train → score once, start to finish. No
   Structured Streaming.
@@ -40,16 +44,19 @@ src/threatlake/
   common/       settings, filesystem paths, the local SparkSession factory
   ingestion/    bronze: landing NDJSON -> parsed, quarantine-split Delta rows
   transform/
-    silver/     bronze -> the unified event schema (cowrie mapper)
+    silver/     bronze -> the unified event schema (honeydb mapper active;
+                cowrie mapper kept, not wired in - see ARCHITECTURE.md)
     gold/       silver -> attacker_profiles, attack_timeline
   ml/           feature engineering, IsolationForest, the port-scan rule,
                 and the combined scorer that writes ml_scores
   enrichment/   offline GeoIP lookups (MaxMind GeoLite2) for attacker_profiles
   copilot/      guardrails, NL->SQL generation, the system prompt builder
   api/          the FastAPI app and its 3 route groups
-config/         config/local.yaml (settings) + config/schema/cowrie.py (the
-                raw JSON schema bronze ingestion parses against)
-scripts/        generate_synthetic_cowrie.py, run_pipeline.py
+config/         config/local.yaml (settings) + config/schema/honeydb.py (the
+                raw JSON schema bronze ingestion parses against; cowrie.py
+                kept alongside it, not active)
+scripts/        fetch_honeydb.py, run_pipeline.py (generate_synthetic_cowrie.py
+                kept, not active)
 dashboard/      the small React + TypeScript app (Alerts / Map / Copilot)
 tests/unit/     bronze, silver, both detectors, geo enrichment, guardrails,
                 API endpoints
@@ -69,16 +76,21 @@ lat/lon and the dashboard's Map tab): download `GeoLite2-City.mmdb` and
 `FileNotFoundError` telling you exactly what's missing and where to get
 it - not a silent skip.
 
+**HoneyDB API credentials** (required for step 2 below): a free API ID +
+key from <https://honeydb.io> (sign up, then find them under your
+account), placed in a `.env` file at the repo root as
+`HONEYDB_API_ID=...` / `HONEYDB_API_KEY=...` (gitignored).
+
 ```bash
 # 1. Set up the environment (uv, or plain venv+pip works too)
 uv venv --python 3.11 .venv
 uv pip install --python .venv/bin/python -e ".[dev]"
 
-# 2. Generate synthetic cowrie data (background traffic + an injected
-#    port-scan burst + an injected brute-force burst - see the script's
-#    own docstring)
+# 2. Fetch a real batch of HoneyDB community sensor-data (a few thousand
+#    events from real internet scanners hitting real honeypot sensors -
+#    see the script's own docstring)
 export JAVA_HOME=$(/usr/libexec/java_home -v 21)   # macOS; see your own JDK path otherwise
-.venv/bin/python scripts/generate_synthetic_cowrie.py
+.venv/bin/python scripts/fetch_honeydb.py
 
 # 3. Run the whole pipeline: bronze -> silver -> gold -> train -> score.
 #    Prints real row counts and samples at every stage.
@@ -118,11 +130,16 @@ rejection reason rather than a 500, which is itself worth seeing once.
 
 | Reused byte-for-byte unmodified | Adapted from the real logic | Newly written for PFA |
 |---|---|---|
-| `transform/silver/schema.py`, `transform/silver/cowrie.py` | `transform/gold/attacker_profiles.py` (geo enrichment wired in; no reputation) | `ml/features.py` (small, honeypot-native features — no benchmark-transfer contract) |
-| `ml/rules.py` (`port_scan_rule`) | `ml/train_anomaly.py` (joblib, not MLflow) | `ml/score_events.py`, `scripts/generate_synthetic_cowrie.py`, the dashboard (incl. `MapView.tsx`) |
-| `transform/gold/writer.py`, `transform/gold/attack_timeline.py` | `copilot/guardrails.py` (`ALLOWED_TABLES` trimmed to 2 tables) | `common/config.py`, `common/paths.py` (trimmed shape) |
+| `transform/silver/schema.py`, `transform/silver/cowrie.py` (kept, inactive) | `transform/gold/attacker_profiles.py` (geo enrichment wired in; no reputation) | `ml/features.py` (small, honeypot-native features — no benchmark-transfer contract) |
+| `ml/rules.py` (`port_scan_rule`) | `ml/train_anomaly.py` (joblib, not MLflow) | `ml/score_events.py`, `transform/silver/honeydb.py`, `scripts/fetch_honeydb.py`, the dashboard (incl. `MapView.tsx`) |
+| `transform/gold/writer.py`, `transform/gold/attack_timeline.py` | `copilot/guardrails.py` (`ALLOWED_TABLES` trimmed to 2 tables) | `common/config.py`, `common/paths.py` (trimmed shape), `config/schema/honeydb.py` |
 | `enrichment/geo.py` (`GeoEnricher`, `enrich_geo`) | `api/schemas.py`, `api/routers/attacker_profiles.py` (lat/lon flattened out of `geo`) | |
-| `copilot/text_to_sql.py`, `copilot/prompts.py`, `api/routers/copilot.py`, `api/deps.py`, `common/fs.py`, `config/schema/cowrie.py` | `api/_tables.py`, `api/app.py`, `api/routers/alerts.py` | |
+| `copilot/text_to_sql.py`, `copilot/prompts.py`, `api/routers/copilot.py`, `api/deps.py`, `common/fs.py`, `config/schema/cowrie.py` (kept, inactive) | `api/_tables.py`, `api/app.py`, `api/routers/alerts.py` | |
+
+`scripts/generate_synthetic_cowrie.py` is also kept, unmodified, inactive
+— PFA's original synthetic-data generator, superseded by
+`scripts/fetch_honeydb.py` but not deleted. See ARCHITECTURE.md's "Real
+data, not synthetic" section for the full story.
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for the full reasoning behind each
 adaptation and everything left out entirely.

@@ -1,10 +1,10 @@
 # ThreatLake PFA - local-only configuration.
 #
 # Trimmed from ThreatLake_AI's config/local.yaml: one honeypot source
-# (cowrie), two gold tables, no streaming section, no Databricks branch.
-# Same precedence rules as the original (see
-# threatlake.common.config.Settings): explicit kwargs > THREATLAKE_ env
-# vars > this file > field defaults.
+# (honeydb - real community sensor data, see ARCHITECTURE.md), two gold
+# tables, no streaming section, no Databricks branch. Same precedence
+# rules as the original (see threatlake.common.config.Settings): explicit
+# kwargs > THREATLAKE_ env vars > this file > field defaults.
 env: local
 
 storage:
@@ -15,7 +15,7 @@ storage:
 tables:
   # No metastore locally - tables are path-based under storage.root.
   bronze:
-    cowrie: bronze_cowrie
+    honeydb: bronze_honeydb
   silver:
     events: events
   gold:

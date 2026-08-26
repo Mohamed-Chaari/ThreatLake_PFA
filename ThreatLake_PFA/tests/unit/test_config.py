@@ -10,7 +10,7 @@ from threatlake.common.config import ConfigError, Settings, get_settings
 def test_get_settings_loads_local_yaml(local_env: None) -> None:
     settings = get_settings()
     assert settings.env == "local"
-    assert settings.tables.bronze == {"cowrie": "bronze_cowrie"}
+    assert settings.tables.bronze == {"honeydb": "bronze_honeydb"}
     assert settings.tables.gold["attacker_profiles"] == "attacker_profiles"
 
 

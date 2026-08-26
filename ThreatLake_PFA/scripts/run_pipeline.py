@@ -39,7 +39,7 @@ from threatlake.ml.score_events import write_scored_events  # noqa: E402
 from threatlake.ml.train_anomaly import train_anomaly  # noqa: E402
 from threatlake.transform.gold.attack_timeline import write_attack_timeline  # noqa: E402
 from threatlake.transform.gold.attacker_profiles import write_attacker_profiles  # noqa: E402
-from threatlake.transform.silver.cowrie import map_cowrie  # noqa: E402
+from threatlake.transform.silver.honeydb import map_honeydb  # noqa: E402
 
 # Real GeoLite2 production databases, manually downloaded from MaxMind
 # (free account + email verification required - see
@@ -60,24 +60,24 @@ def main() -> None:
 
     # --- Step 1: bronze ---------------------------------------------------
     _print_header("STEP 1 - BRONZE (landing zone -> parsed, stamped rows)")
-    bronze_result = write_bronze("cowrie", spark)
+    bronze_result = write_bronze("honeydb", spark)
     print(bronze_result)
     if bronze_result.written == 0 and bronze_result.quarantined == 0:
         print(
             "Nothing new in the landing zone. Run "
-            "scripts/generate_synthetic_cowrie.py first, or check "
+            "scripts/fetch_honeydb.py first, or check "
             "config/local.yaml's storage.landing path."
         )
 
-    bronze_df = spark.read.format("delta").load(bronze_path("cowrie"))
-    print(f"bronze_cowrie now has {bronze_df.count()} rows total.")
-    bronze_df.select("ingest_date", "source_type", "_record_hash", "cowrie.eventid").show(
-        5, truncate=40
-    )
+    bronze_df = spark.read.format("delta").load(bronze_path("honeydb"))
+    print(f"bronze_honeydb now has {bronze_df.count()} rows total.")
+    bronze_df.select(
+        "ingest_date", "source_type", "_record_hash", "honeydb.service", "honeydb.event"
+    ).show(5, truncate=40)
 
     # --- Step 2: silver -----------------------------------------------------
     _print_header("STEP 2 - SILVER (bronze -> the unified event shape)")
-    silver_df = map_cowrie(bronze_df)
+    silver_df = map_honeydb(bronze_df)
     silver_df.write.format("delta").mode("overwrite").option("overwriteSchema", "true").save(
         silver_path("events")
     )

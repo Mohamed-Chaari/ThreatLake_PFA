@@ -34,6 +34,10 @@ dashboard/*.tsbuildinfo
 logs/
 .run/
 
+# Secrets - API keys/IDs (HoneyDB, Gemini, etc.) never get committed.
+.env
+.env.*
+
 # OS / Editor
 .DS_Store
 .vscode/
